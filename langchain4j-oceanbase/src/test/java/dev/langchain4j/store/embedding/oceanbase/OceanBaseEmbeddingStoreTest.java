@@ -96,9 +96,9 @@ class OceanBaseEmbeddingStoreTest extends EmbeddingStoreWithFilteringIT {
         obVector.withStartupTimeout(Duration.ofMinutes(5));
         obVector.start();
         config.setDriverClassName("com.mysql.cj.jdbc.Driver");
-        config.setJdbcUrl(obVector.getJdbcUrl()); // 数据库URL
-        config.setUsername(obVector.getUsername()); // 数据库用户名
-        config.setPassword(obVector.getPassword()); // 数据库密码
+        config.setJdbcUrl(obVector.getJdbcUrl());
+        config.setUsername(obVector.getUsername());
+        config.setPassword(obVector.getPassword());
         config.addDataSourceProperty("cachePrepStmts", "true");
         config.addDataSourceProperty("prepStmtCacheSize", "250");
         config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
