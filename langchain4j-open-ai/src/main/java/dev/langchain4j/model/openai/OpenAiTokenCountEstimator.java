@@ -10,7 +10,6 @@ import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.Content;
-import dev.langchain4j.data.message.ImageContent;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.TextContent;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
@@ -23,12 +22,8 @@ import java.util.function.Supplier;
 
 import static com.knuddels.jtokkit.api.EncodingType.O200K_BASE;
 import static dev.langchain4j.internal.Exceptions.illegalArgument;
+import static dev.langchain4j.internal.Utils.isNullOrBlank;
 import static dev.langchain4j.internal.ValidationUtils.ensureNotBlank;
-import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_3_5_TURBO_0125;
-import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_3_5_TURBO_1106;
-import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_0125_PREVIEW;
-import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_1106_PREVIEW;
-import static dev.langchain4j.model.openai.OpenAiChatModelName.GPT_4_TURBO_PREVIEW;
 
 /**
  * This class can be used to estimate the cost (in tokens) before calling OpenAI.
@@ -84,7 +79,7 @@ public class OpenAiTokenCountEstimator implements TokenCountEstimator {
     @Override
     public int estimateTokenCountInMessage(ChatMessage message) {
         int tokenCount = 1; // 1 token for role
-        tokenCount += extraTokensPerMessage();
+        tokenCount += 3; // extra tokens per each message
 
         if (message instanceof SystemMessage) {
             tokenCount += estimateTokenCountIn((SystemMessage) message);
@@ -111,15 +106,13 @@ public class OpenAiTokenCountEstimator implements TokenCountEstimator {
         for (Content content : userMessage.contents()) {
             if (content instanceof TextContent) {
                 tokenCount += estimateTokenCountInText(((TextContent) content).text());
-            } else if (content instanceof ImageContent) {
-                tokenCount += 85; // TODO implement for HIGH/AUTO detail level
             } else {
                 throw illegalArgument("Unknown content type: " + content);
             }
         }
 
         if (userMessage.name() != null) {
-            tokenCount += extraTokensPerName();
+            tokenCount += 1; // extra tokens per name
             tokenCount += estimateTokenCountInText(userMessage.name());
         }
 
@@ -133,12 +126,8 @@ public class OpenAiTokenCountEstimator implements TokenCountEstimator {
             tokenCount += estimateTokenCountInText(aiMessage.text());
         }
 
-        if (aiMessage.toolExecutionRequests() != null) {
-            if (isOneOfLatestModels()) {
-                tokenCount += 6;
-            } else {
-                tokenCount += 3;
-            }
+        if (aiMessage.hasToolExecutionRequests()) {
+            tokenCount += 6;
             if (aiMessage.toolExecutionRequests().size() == 1) {
                 tokenCount -= 1;
                 ToolExecutionRequest toolExecutionRequest = aiMessage.toolExecutionRequests().get(0);
@@ -150,16 +139,19 @@ public class OpenAiTokenCountEstimator implements TokenCountEstimator {
                     tokenCount += 7;
                     tokenCount += estimateTokenCountInText(toolExecutionRequest.name());
 
-                    Map<?, ?> arguments;
+                    if (isNullOrBlank(toolExecutionRequest.arguments())) {
+                        continue;
+                    }
+
                     try {
-                        arguments = OBJECT_MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
+                        Map<?, ?> arguments = OBJECT_MAPPER.readValue(toolExecutionRequest.arguments(), Map.class);
+                        for (Map.Entry<?, ?> argument : arguments.entrySet()) {
+                            tokenCount += 2;
+                            tokenCount += estimateTokenCountInText(String.valueOf(argument.getKey()));
+                            tokenCount += estimateTokenCountInText(String.valueOf(argument.getValue()));
+                        }
                     } catch (JsonProcessingException e) {
                         throw new RuntimeException(e);
-                    }
-                    for (Map.Entry<?, ?> argument : arguments.entrySet()) {
-                        tokenCount += 2;
-                        tokenCount += estimateTokenCountInText(argument.getKey().toString());
-                        tokenCount += estimateTokenCountInText(argument.getValue().toString());
                     }
                 }
             }
@@ -174,22 +166,6 @@ public class OpenAiTokenCountEstimator implements TokenCountEstimator {
 
     private int estimateTokenCountIn(ToolExecutionResultMessage toolExecutionResultMessage) {
         return estimateTokenCountInText(toolExecutionResultMessage.text());
-    }
-
-    private int extraTokensPerMessage() {
-        if (modelName.equals("gpt-3.5-turbo-0301")) {
-            return 4;
-        } else {
-            return 3;
-        }
-    }
-
-    private int extraTokensPerName() {
-        if (modelName.equals("gpt-3.5-turbo-0301")) {
-            return -1; // if there's a name, the role is omitted
-        } else {
-            return 1;
-        }
     }
 
     @Override
@@ -226,21 +202,5 @@ public class OpenAiTokenCountEstimator implements TokenCountEstimator {
 
     private Supplier<IllegalArgumentException> unknownModelException() {
         return () -> illegalArgument("Model '%s' is unknown to jtokkit", modelName);
-    }
-
-    private boolean isOneOfLatestModels() {
-        return isOneOfLatestGpt3Models() || isOneOfLatestGpt4Models();
-    }
-
-    private boolean isOneOfLatestGpt3Models() {
-        // TODO add GPT_3_5_TURBO once it points to GPT_3_5_TURBO_1106
-        return modelName.equals(GPT_3_5_TURBO_1106.toString())
-                || modelName.equals(GPT_3_5_TURBO_0125.toString());
-    }
-
-    private boolean isOneOfLatestGpt4Models() {
-        return modelName.equals(GPT_4_TURBO_PREVIEW.toString())
-                || modelName.equals(GPT_4_1106_PREVIEW.toString())
-                || modelName.equals(GPT_4_0125_PREVIEW.toString());
     }
 }
