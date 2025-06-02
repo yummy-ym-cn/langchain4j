@@ -127,10 +127,8 @@ public class ObVectorFilterMapper {
                 + values.stream()
                         .map(v -> {
                             if (v instanceof Number) {
-                                // 如果是数字类型，不加单引号
                                 return String.valueOf(v);
                             } else {
-                                // 其他类型，加单引号
                                 return String.format("'%s'", v);
                             }
                         })

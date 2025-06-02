@@ -90,12 +90,11 @@ final class CommonTestOperations {
         config.addDataSourceProperty("prepStmtCacheSize", "250");
         config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
 
-        // 连接池大小配置 - 减少连接数
-        config.setMaximumPoolSize(3); // 最大连接数设为3（默认通常是10）
-        config.setMinimumIdle(1); // 最小空闲连接数设为1（默认与maximumPoolSize相同）
-        config.setConnectionTimeout(30000); // 连接超时30秒
-        config.setIdleTimeout(600000); // 空闲连接超时10分钟后关闭
-        config.setMaxLifetime(1800000); // 连接最大生命周期30分钟
+        config.setMaximumPoolSize(3);
+        config.setMinimumIdle(1);
+        config.setConnectionTimeout(30000);
+        config.setIdleTimeout(600000);
+        config.setMaxLifetime(1800000);
 
         DataSource newDataSource = new HikariDataSource(config);
 
